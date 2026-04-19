@@ -144,7 +144,123 @@ def add_course(conn):
 # enroll student
 
 def enroll_student(conn):
-    pass
+
+
+    print_header("FEATURE 2 — Student Enrollment  (Even Semester 2006)")
+ 
+    roll_no = input("\n  Enter Student Roll No : ").strip()
+    cursor = conn.cursor(dictionary=True)
+ 
+    # 1. Validate student exists
+    cursor.execute(
+        "SELECT rollNo, name, deptNo FROM student WHERE rollNo = %s",
+        (roll_no,)
+    )
+    student = cursor.fetchone()
+    if not student:
+        print_error(f"Student with roll no '{roll_no}' does not exist.")
+        cursor.close()
+        return
+    print_info(f"Student found: {student['name']}  (Dept: {student['deptNo']})")
+ 
+    # 2. Get course IDs to enroll in
+    raw = input("  Enter Course ID(s) (comma-separated): ").strip()
+    course_ids = [c.strip() for c in raw.split(",") if c.strip()]
+    if not course_ids:
+        print_error("No course IDs provided.")
+        cursor.close()
+        return
+ 
+    print()
+    enrolled_any = False
+ 
+    for course_id in course_ids:
+        print(f"  ── Processing course: {course_id}")
+ 
+        # 3. Check course exists
+        cursor.execute(
+            "SELECT courseId, cname FROM course WHERE courseId = %s",
+            (course_id,)
+        )
+        course = cursor.fetchone()
+        if not course:
+            print_error(f"Course '{course_id}' not found. Skipping.")
+            print()
+            continue
+ 
+        # 4. Check if already enrolled
+        cursor.execute(
+            """SELECT 1 FROM enrollment
+               WHERE rollNo=%s AND courseId=%s AND sem=%s AND year=%s""",
+            (roll_no, course_id, SEM, YEAR)
+        )
+        if cursor.fetchone():
+            print_error(f"Already enrolled in '{course_id}' ({course['cname']}) for Even 2006.")
+            print()
+            continue
+ 
+        # 5. Fetch prerequisites for this course
+        cursor.execute(
+            "SELECT preReqCourse FROM prerequisite WHERE courseId = %s",
+            (course_id,)
+        )
+        prereqs = [row['preReqCourse'] for row in cursor.fetchall()]
+ 
+        # 6. Check each prerequisite
+        failed_prereqs  = []
+        missing_prereqs = []
+ 
+        for prereq_id in prereqs:
+            cursor.execute(
+                """SELECT grade FROM enrollment
+                   WHERE rollNo = %s AND courseId = %s""",
+                (roll_no, prereq_id)
+            )
+            records = cursor.fetchall()
+ 
+            if not records:
+                missing_prereqs.append(prereq_id)
+            else:
+                # Student attempted this prereq — check if they passed in any attempt
+                passed = any(r['grade'] not in FAIL_GRADES for r in records)
+                if not passed:
+                    failed_prereqs.append(prereq_id)
+ 
+        # 7. Report and decide
+        if missing_prereqs or failed_prereqs:
+            print_error(f"Cannot enroll in '{course_id}' ({course['cname']}):")
+            if missing_prereqs:
+                print_info(f"  Not attempted  : {', '.join(missing_prereqs)}")
+            if failed_prereqs:
+                print_info(f"  Failed/not passed: {', '.join(failed_prereqs)}")
+            print()
+            continue
+ 
+        # 8. All prereqs cleared — enroll
+        cursor.execute(
+            """INSERT INTO enrollment (rollNo, courseId, sem, year, grade)
+               VALUES (%s, %s, %s, %s, NULL)""",
+            (roll_no, course_id, SEM, YEAR)
+        )
+        conn.commit()
+ 
+        prereq_msg = (
+            f"  Prerequisites cleared: {', '.join(prereqs)}"
+            if prereqs else "  No prerequisites required."
+        )
+        print_success(
+            f"Enrolled in '{course_id}' ({course['cname']}) — Even 2006"
+        )
+        print_info(prereq_msg)
+        print()
+        enrolled_any = True
+ 
+    if enrolled_any:
+        print_info("Enrollment process complete.")
+    else:
+        print_info("No new enrollments were made.")
+ 
+    cursor.close()
 
 
 
