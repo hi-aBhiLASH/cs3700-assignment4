@@ -1,4 +1,4 @@
-#!/usr/bin/env python 3
+#!/usr/bin/env python3
 
 import sys
 import argparse
@@ -90,9 +90,9 @@ def add_course(conn):
 
 
 
-    # validate teacher exists and belongs to this dept
+    # validate teacher exists, belongs to this dept, and startYear <= 2006
     cursor.execute(
-        "SELECT empId, name, deptNo FROM professor WHERE empId = %s",
+        "SELECT empId, name, deptNo, startYear FROM professor WHERE empId = %s",
         (teacher_id,)
     )
     teacher = cursor.fetchone()
@@ -107,7 +107,14 @@ def add_course(conn):
         )
         cursor.close()
         return
-    print_info(f"Professor found: {teacher['name']}")
+    if teacher['startYear'] > YEAR:
+        print_error(
+            f"Professor '{teacher_id}' ({teacher['name']}) joined in "
+            f"{teacher['startYear']}, which is after {YEAR}."
+        )
+        cursor.close()
+        return
+    print_info(f"Professor found: {teacher['name']}  (Joined: {teacher['startYear']})")
 
 
     # check for duplicate teaching entry in the same year/sem
@@ -178,18 +185,28 @@ def enroll_student(conn):
     for course_id in course_ids:
         print(f"  ── Processing course: {course_id}")
  
-        # 3. Check course exists
+        # 3. Check course exists and is offered in Even 2006
+        cursor.execute(
+            "SELECT 1 FROM teaching WHERE courseId=%s AND sem=%s AND year=%s",
+            (course_id, SEM, YEAR)
+        )
+        if not cursor.fetchone():
+            cursor.execute("SELECT 1 FROM course WHERE courseId=%s", (course_id,))
+            if not cursor.fetchone():
+                print_error(f"Course '{course_id}' does not exist. Skipping.")
+            else:
+                print_error(f"Course '{course_id}' is not offered in Even 2006. Skipping.")
+            print()
+            continue
+
+        # 4. Fetch course name for messages
         cursor.execute(
             "SELECT courseId, cname FROM course WHERE courseId = %s",
             (course_id,)
         )
         course = cursor.fetchone()
-        if not course:
-            print_error(f"Course '{course_id}' not found. Skipping.")
-            print()
-            continue
- 
-        # 4. Check if already enrolled
+
+        # 5. Check if already enrolled
         cursor.execute(
             """SELECT 1 FROM enrollment
                WHERE rollNo=%s AND courseId=%s AND sem=%s AND year=%s""",
@@ -200,14 +217,14 @@ def enroll_student(conn):
             print()
             continue
  
-        # 5. Fetch prerequisites for this course
+        # 6. Fetch prerequisites for this course
         cursor.execute(
             "SELECT preReqCourse FROM prerequisite WHERE courseId = %s",
             (course_id,)
         )
         prereqs = [row['preReqCourse'] for row in cursor.fetchall()]
  
-        # 6. Check each prerequisite
+        # 7. Check each prerequisite
         failed_prereqs  = []
         missing_prereqs = []
  
@@ -227,7 +244,7 @@ def enroll_student(conn):
                 if not passed:
                     failed_prereqs.append(prereq_id)
  
-        # 7. Report and decide
+        # 8. Report and decide
         if missing_prereqs or failed_prereqs:
             print_error(f"Cannot enroll in '{course_id}' ({course['cname']}):")
             if missing_prereqs:
@@ -237,7 +254,7 @@ def enroll_student(conn):
             print()
             continue
  
-        # 8. All prereqs cleared — enroll
+        # 9. All prereqs cleared — enroll
         cursor.execute(
             """INSERT INTO enrollment (rollNo, courseId, sem, year, grade)
                VALUES (%s, %s, %s, %s, NULL)""",
