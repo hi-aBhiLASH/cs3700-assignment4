@@ -1,21 +1,22 @@
 #!/usr/bin/env python 3
 
 import sys
+import argparse
+import getpass
 import mysql.connector
 from mysql.connector import Error
 
 
 # db connection
-
-def get_connection():
-    
+ 
+def get_connection(host, user, password):
+    """Return a MySQL connection using provided credentials."""
     return mysql.connector.connect(
-        host = "localhost",
-        user = "root",
-        password = "",
-        database = "academic_insti"
+        host=host,
+        user=user,
+        password=password,
+        database="academic_insti"
     )
-
 
 
 FAIL_GRADES = ('U', 'E')
@@ -262,18 +263,38 @@ def enroll_student(conn):
  
     cursor.close()
 
-
+def parse_args():
+    parser = argparse.ArgumentParser(
+        description="Academic Institution DB — Assignment 4A",
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        epilog="Examples:\n"
+               "  python main.py -u root -p mypassword\n"
+               "  python main.py --user root --password mypassword\n"
+               "  python main.py -u root          # prompts for password\n"
+               "  python main.py --host 192.168.1.5 -u admin -p secret\n"
+    )
+    parser.add_argument("-u", "--user",     default="root",      help="MySQL username (default: root)")
+    parser.add_argument("-p", "--password", default=None,        help="MySQL password (omit to be prompted)")
+    parser.add_argument(      "--host",     default="localhost", help="MySQL host (default: localhost)")
+    return parser.parse_args()
+ 
 
 
 def main():
+
+    args = parse_args()
+ 
+    # If password not provided as arg, prompt securely (no echo)
+    if args.password is None:
+        args.password = getpass.getpass(f"  MySQL password for '{args.user}': ")
     print("\n" + "═" * 55)
     print("   Academic Institution DB — Assignment 4A")
     print("═" * 55)
 
 
     try:
-        conn = get_connection()
-        print_info("Connected to database 'academic_insti'.")
+        conn = get_connection(args.host, args.user, args.password)
+        print_info(f"Connected as '{args.user}' to database 'academic_insti'.")
     except Error as e:
         print_error(f"Could not connect to database: {e}")
         sys.exit(1)
