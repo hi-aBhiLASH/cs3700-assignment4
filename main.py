@@ -5,6 +5,7 @@ import mysql.connector
 from mysql.connector import Error
 
 
+# db connection
 
 def get_connection():
     
@@ -21,6 +22,8 @@ FAIL_GRADES = ('U', 'E')
 SEM  = 'Even'
 YEAR = 2006
 
+
+# helpers
 
 def print_header(title: str):
     print("\n" + "═" * 55)
@@ -41,6 +44,7 @@ def print_info(msg: str):
 
 
 
+# add course to even sem with details
 
 def add_course(conn):
     print_header("FEATURE 1 — Add Course  (Even Semester 2006)")
@@ -135,6 +139,9 @@ def add_course(conn):
     )
     cursor.close()
 
+
+
+# enroll student
 
 def enroll_student(conn):
     pass
