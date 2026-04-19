@@ -43,7 +43,97 @@ def print_info(msg: str):
 
 
 def add_course(conn):
-    pass
+    print_header("FEATURE 1 — Add Course  (Even Semester 2006)")
+ 
+    dept_id    = input("\n  Enter Department ID   : ").strip()
+    course_id  = input("  Enter Course ID       : ").strip()
+    teacher_id = input("  Enter Teacher (Emp) ID: ").strip()
+    classroom  = input("  Enter Classroom       : ").strip()
+ 
+    cursor = conn.cursor(dictionary=True)
+
+
+    # validate dept exists
+    cursor.execute("SELECT deptId, name FROM department WHERE deptId = %s", (dept_id,))
+    dept = cursor.fetchone()
+    if not dept:
+        print_error(f"Department '{dept_id}' does not exist.")
+        cursor.close()
+        return
+    print_info(f"Department found: {dept['name']}")
+
+
+
+    # validate course exists and belongs to this dept
+    cursor.execute(
+        "SELECT courseId, cname, deptNo FROM course WHERE courseId = %s",
+        (course_id,)
+    )
+    course = cursor.fetchone()
+    if not course:
+        print_error(f"Course '{course_id}' does not exist in the database.")
+        cursor.close()
+        return
+    if course['deptNo'] != dept_id:
+        print_error(
+            f"Course '{course_id}' ({course['cname']}) belongs to "
+            f"dept '{course['deptNo']}', not dept '{dept_id}'."
+        )
+        cursor.close()
+        return
+    print_info(f"Course found: {course['cname']}")
+
+
+
+    # validate teacher exists and belongs to this dept
+    cursor.execute(
+        "SELECT empId, name, deptNo FROM professor WHERE empId = %s",
+        (teacher_id,)
+    )
+    teacher = cursor.fetchone()
+    if not teacher:
+        print_error(f"Professor with empId '{teacher_id}' does not exist.")
+        cursor.close()
+        return
+    if teacher['deptNo'] != dept_id:
+        print_error(
+            f"Professor '{teacher_id}' ({teacher['name']}) belongs to "
+            f"dept '{teacher['deptNo']}', not dept '{dept_id}'."
+        )
+        cursor.close()
+        return
+    print_info(f"Professor found: {teacher['name']}")
+
+
+    # check for duplicate teaching entry in the same year/sem
+    cursor.execute(
+        """SELECT 1 FROM teaching
+           WHERE empId=%s AND courseId=%s AND sem=%s AND year=%s""",
+        (teacher_id, course_id, SEM, YEAR)
+    )
+    if cursor.fetchone():
+        print_error(
+            f"Professor '{teacher_id}' is already assigned to course "
+            f"'{course_id}' in Even 2006."
+        )
+        cursor.close()
+        return
+ 
+
+
+    # insert data into teaching
+    cursor.execute(
+        """INSERT INTO teaching (empId, courseId, sem, year, classRoom)
+           VALUES (%s, %s, %s, %s, %s)""",
+        (teacher_id, course_id, SEM, YEAR, classroom)
+    )
+    conn.commit()
+ 
+    print_success(
+        f"Course '{course_id}' ({course['cname']}) successfully added!\n"
+        f"     Taught by : {teacher['name']}  |  Room: {classroom}  |  {SEM} {YEAR}"
+    )
+    cursor.close()
 
 
 def enroll_student(conn):
